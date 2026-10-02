@@ -1,0 +1,35 @@
+[
+  {
+    "route_id": "R-104",
+    "depot_capacity": 0.75,
+    "driver_hours": 11.5,
+    "volume": 0.9,
+    "velocity": 98.0,
+    "lane_velocity": 100.0,
+    "offramp_velocity": 80.0,
+    "merge_t": 480,
+    "offramp_t": 180
+  },
+  {
+    "route_id": "R-117",
+    "depot_capacity": 0.97,
+    "driver_hours": 13.2,
+    "volume": 1.0,
+    "velocity": 105.0,
+    "lane_velocity": 100.0,
+    "offramp_velocity": 85.0,
+    "merge_t": 900,
+    "offramp_t": 210
+  },
+  {
+    "route_id": "R-121",
+    "depot_capacity": 0.88,
+    "driver_hours": 15.1,
+    "volume": 0.95,
+    "velocity": 96.0,
+    "lane_velocity": 100.0,
+    "offramp_velocity": 90.0,
+    "merge_t": 1500,
+    "offramp_t": 320
+  }
+]

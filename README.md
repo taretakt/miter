@@ -1,0 +1,97 @@
+# MITER
+
+**A deterministic workflow-evaluation DSL with a natural-language compiler.**
+
+Most evaluation tools check *states*: is this field under its threshold?
+MITER's claim is that workflows are sequences of connected segments, and
+**the transition is where work actually fails** — an entity crossing into a
+new lane must meet the receiving lane's conditions, inside a tolerance and a
+time budget. MITER makes that constraint checkable instead of metaphorical.
+
+```text
+# route_feasibility.mtr  (see examples/)
+EVALUATION route
+SUBJECT route
+INPUTS stops depot_capacity driver_hours
+
+CRITERION depot_within_capacity
+    FIELD depot_capacity <= 0.95
+    SEVERITY error
+    NOTE depot utilization must stay under 95%
+
+CRITERION driver_within_hours
+    FIELD driver_hours <= 14.0
+    SEVERITY error
+
+VARIATION peak_volume
+    ADJUST depot_capacity SCALE 1.2
+    NOTE what happens when volume spikes
+
+INTERFACE merge_onto_expressway
+    FROM collector TO expressway
+    MATCH velocity TO lane_velocity
+    TOLERANCE 0.15
+    BUDGET 20m
+    TIME merge_t
+
+END
+```
+
+## The three primitives
+
+- **Criteria** — what "passing" means for a field: a threshold and an operator.
+  `SEVERITY error` fails the evaluation; `warn` reports without failing it.
+- **Variations** — what "if it changes" means: perturbations (`SCALE`, `OFFSET`,
+  `SET`) applied to the data before re-evaluation. A variation that fails fails
+  the evaluation — this is where edge cases earn their keep.
+- **Interfaces** — the transition itself. An interface declares a `MATCH`
+  between the entity's field and the receiving lane's field, a `TOLERANCE`
+  (fractional deviation), and a `BUDGET` (time window) measured on a `TIME`
+  field. A `FROM`/`TO` pair names the transition; the match is the constraint.
+
+## Determinism
+
+The engine is byte-deterministic: **the same spec + the same data produces
+byte-identical output, every run.** No randomness, no environment dependence,
+stable ordering throughout. That is the load-bearing property for an
+evaluation tool — a verdict you can't reproduce isn't a verdict.
+
+## Natural-language compilation
+
+A natural-language description compiles to a spec via `miter compile` — a deterministic
+core that recognises closed phrasings, plus an optional LLM backend:
+
+```console
+$ miter compile "check that driver hours stay under 14"
+EVALUATION compiled_evaluation
+SUBJECT subject
+INPUTS driver_hours
+
+CRITERION criterion_1
+    FIELD driver_hours < 14
+
+END
+```
+
+The compiler re-parses its own output before accepting it — nothing
+unparseable ships. When the source text doesn't state a bound, the criterion
+is emitted with `SEVERITY warn` and a note telling you to edit it, instead of
+inventing a threshold.
+
+## Install & run
+
+```console
+$ pip install miter            # or: uv add miter
+$ miter run examples/route_feasibility.mtr --data examples/routes.json
+$ miter lint examples/route_feasibility.mtr
+$ miter compile "the route must respect depot capacity and driver hours"
+```
+
+## Development
+
+```console
+$ uv sync --dev
+$ uv run pytest
+```
+
+License: MIT

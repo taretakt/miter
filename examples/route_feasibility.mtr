@@ -1,0 +1,59 @@
+# route_feasibility.mtr
+#
+# The canonical example. A route is a trajectory through a network, and
+# every network boundary is an interface that must be matched, not just
+# crossed: an entity entering a new lane must meet the receiving lane's
+# conditions (velocity within tolerance, inside a time budget). The engine
+# evaluates criteria under variations and checks every interface.
+
+EVALUATION route_feasibility
+SUBJECT route
+INPUTS depot_capacity driver_hours stops volume
+
+# --- What passing means, field by field -------------------------------
+
+CRITERION depot_within_capacity
+    FIELD depot_capacity <= 0.95
+    SEVERITY error
+    NOTE depot utilization (0..1) must stay under 95%
+
+CRITERION driver_within_hours
+    FIELD driver_hours <= 14.0
+    SEVERITY error
+    NOTE driver operating hours must respect the 14-hour limit
+
+CRITERION load_balanced
+    FIELD volume <= 1.0
+    SEVERITY warn
+    NOTE normalized load factor; warn only
+
+# --- Variations: the same route under edge conditions -----------------
+
+VARIATION peak_volume
+    ADJUST depot_capacity SCALE 1.2
+    ADJUST volume SCALE 1.3
+    NOTE winter peak: depot absorbs 20% more, volume up 30%
+
+VARIATION driver_exhaustion
+    ADJUST driver_hours OFFSET 1.0
+    NOTE +1h if the driver reports fatigue at the first stop
+
+# --- Interfaces: the ghost car ----------------------------------------
+
+INTERFACE merge_onto_expressway
+    FROM collector TO expressway
+    MATCH velocity TO lane_velocity
+    TOLERANCE 0.10
+    BUDGET 20m
+    TIME merge_t
+    NOTE must match expressway lane velocity within 10% inside 20 minutes of hitting the ramp
+
+INTERFACE exit_offramp
+    FROM expressway TO surface
+    MATCH velocity TO offramp_velocity
+    TOLERANCE 0.25
+    BUDGET 5m
+    TIME offramp_t
+    NOTE offramps are more forgiving: 25% tolerance, 5-minute budget
+
+END

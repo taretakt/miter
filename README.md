@@ -40,6 +40,7 @@ END
 ## Documentation
 
 - [docs/positioning.md](docs/positioning.md) — the full problem framing: why the transition, why determinism, who it's for
+- [docs/bounding-analysis.md](docs/bounding-analysis.md) — empirically probed boundaries: what the DSL can and cannot express, and what to add next
 
 ## The three primitives
 

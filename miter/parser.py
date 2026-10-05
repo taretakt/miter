@@ -222,6 +222,7 @@ def _build_criterion(blk: _Block) -> Criterion:
     severity: Severity = "error"
     note = ""
     agg: str | None = None
+    threshold_str: str | None = None
     for lineno, content in blk.lines:
         parts = content.split()
         kw = parts[0]
@@ -247,7 +248,14 @@ def _build_criterion(blk: _Block) -> Criterion:
                 field = raw
                 agg = None
             op = parts[2]
-            threshold = _parse_number(parts[3])
+            if len(parts) >= 4 and len(parts[3]) >= 2 and parts[3][0] == '"' and parts[3][-1] == '"':
+                if op not in ("==", "!="):
+                    raise MiterError(f"line {lineno}: string values only support == and != (got {op!r})")
+                threshold_str = parts[3][1:-1]
+                threshold = 0.0
+            else:
+                threshold = _parse_number(parts[3])
+                threshold_str = None
         elif kw.upper() == "SEVERITY":
             if len(parts) < 2 or parts[1].lower() not in ("error", "warn"):
                 raise MiterError(f"line {lineno}: SEVERITY must be error or warn")
@@ -258,7 +266,7 @@ def _build_criterion(blk: _Block) -> Criterion:
             raise MiterError(f"line {lineno}: unknown CRITERION directive {kw!r}")
     if field is None or op is None or threshold is None:
         raise MiterError(f"CRITERION {blk.id!r} is missing a FIELD line")
-    return Criterion(id=blk.id, field=field, op=op, threshold=threshold, severity=severity, note=note, agg=agg)
+    return Criterion(id=blk.id, field=field, op=op, threshold=threshold, severity=severity, note=note, agg=agg, threshold_str=threshold_str)
 
 
 def _build_variation(blk: _Block) -> Variation:

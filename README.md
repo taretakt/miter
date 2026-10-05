@@ -59,6 +59,22 @@ CRITERION coverage_ok
 
 Deterministic: same spec + same rows -> byte-identical report, aggregates included.
 
+## Categorical equality (v0.3)
+
+Exact string comparisons for fields that carry labels, not numbers:
+
+```text
+CRITERION is_urgent
+    FIELD tag == "urgent"
+    SEVERITY error
+```
+
+- `==` and `!=` only (ordering has no meaning for strings; the parser refuses `<`/`>` on quoted values)
+- Missing field -> `N/A`, exactly like numeric criteria
+- The compiler now emits categorical criteria directly from closed phrasings:
+  `<subject> tagged/classified/labeled as <value>` and
+  `status/type/category/class must be <value>` — no NOTICE needed for those forms.
+
 ## Compiler notices (v0.2)
 
 The natural-language compiler flags structure the deterministic core cannot express

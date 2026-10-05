@@ -38,10 +38,18 @@ class Criterion:
     severity: Severity = "error"
     note: str = ""
     agg: str | None = None
+    threshold_str: str | None = None
 
-    def evaluate(self, value: float | None) -> bool | None:
+    def evaluate(self, value: float | None | str) -> bool | None:
         """True = pass, False = fail, None = not applicable (missing field)."""
         if value is None:
+            return None
+        if self.threshold_str is not None:
+            s = str(value)
+            if self.op == "==":
+                return s == self.threshold_str
+            if self.op == "!=":
+                return s != self.threshold_str
             return None
         try:
             lhs = float(value)
@@ -208,7 +216,7 @@ class Evaluation:
                 "subject": self.subject,
                 "inputs": self.inputs,
                 "criteria": [
-                    (c.id, c.field, c.op, c.threshold, c.severity, c.agg) for c in self.criteria
+                    (c.id, c.field, c.op, c.threshold, c.severity, c.agg, c.threshold_str) for c in self.criteria
                 ],
                 "notices": self.notices,
                 "variations": [
@@ -236,13 +244,12 @@ class Evaluation:
 
 
 def nested_get(row: dict[str, Any], path: str) -> float | None:
-    """Access dotted paths like `trip.duration`; returns None when missing."""
+    """Access dotted paths like `trip.duration`; returns None when missing. Returns the raw value (no float coercion)."""
     cur: Any = row
     for part in path.split("."):
         if not isinstance(cur, dict) or part not in cur:
             return None
         cur = cur[part]
-    try:
-        return float(cur)
-    except (TypeError, ValueError):
-        return None
+    # return the RAW value; numeric coercions happen in criteria/aggregates,
+    # so string criteria can see string values
+    return cur

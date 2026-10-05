@@ -70,7 +70,7 @@ _WORD = re.compile(r"[^a-z0-9]+")
 _LOST_STRUCTURE: list[tuple[str, str]] = [
     ("windowed/temporal", r"(?:no more than|at most|at least|fewer than) [a-z0-9]+ (?:[a-z]+ ){0,4}?(?:in|within|over) (?:[a-z0-9]+ )?(?:days?|weeks?|months?|years?)|(?:per|in|within|over|every) (?:[a-z0-9]+ )?(?:days?|weeks?|months?|years?)|rolling|window(?:ed)?|consecutive"),
     ("conditional", r"(?:^| |,)(?:if|unless|when(?:ever)?|provided(?: that)?|then)(?=(?: |,|$))"),
-    ("categorical/string", r"classified as|tagged as|labeled as|status must be|type must be"),
+    ("categorical/string", r"one of|in (?:the )?set|list of allowed|allowed values|any of|equals orders? of"),
 ]
 
 @dataclass
@@ -95,6 +95,7 @@ class _CriterionSpec:
     field: str
     op: str | None = None  # None = no bound stated in source text
     value: float | None = None
+    value_str: str | None = None  # categorical: exact string match
 
 
 def _snake(s: str) -> str:
@@ -122,6 +123,32 @@ def _extract_subject(text: str) -> str:
     )
     return (m.group(1).strip() if m else "subject")
 
+
+
+_CATEGORICAL_PATTERNS = (
+    re.compile(r"(?:tagged|classified|labeled|labelled) as (?:a |an )?(?P<val>[a-z][a-z0-9 _]*)", re.I),
+    re.compile(r"(?:status|type|category|class) must be (?:a |an )?(?P<val>[a-z][a-z0-9 _]*)", re.I),
+)
+
+
+def _extract_categorical(text: str) -> list[tuple[str, str]]:
+    # closed phrasings that become exact string matches:
+    #   '<x> tagged/classified/labeled/labelled as <v>'  and  'status/type/category/class must be <v>'
+    out: list[tuple[str, str]] = []
+    for m in _CATEGORICAL_PATTERNS[0].finditer(text):
+        prefix = _snake(_field_from_clause(text[: m.start()])) or "category"
+        val = m.group("val").split()[0]
+        out.append((prefix, val))
+    for m in _CATEGORICAL_PATTERNS[1].finditer(text):
+        out.append(("status", m.group("val").split()[0]))
+
+    seen = set()
+    final = []
+    for pair in out:
+        if pair not in seen:
+            seen.add(pair)
+            final.append(pair)
+    return final
 
 _VERB_TAIL_WORDS = (
     r"must|should|shall|needs?|need|has|have|is|are|was|were|be|been|"
@@ -204,6 +231,8 @@ def compile_text(text: str) -> CompileResult:
     # 2. criteria: clause-split the sentence, drop verbs and bound phrases
     _criteria: list[_CriterionSpec] = []
     for part in _CLAUSE_SPLIT.split(t):
+        if any(re.search(p, _clean(part)) for p in _CATEGORICAL_PATTERNS):
+            continue
         name = _snake(_field_from_clause(part))
         if name and re.fullmatch(r"[a-z_]+", name):
             _criteria.append(_CriterionSpec(field=name))
@@ -216,6 +245,9 @@ def compile_text(text: str) -> CompileResult:
             criteria_by_field[field] = _CriterionSpec(field=field, op=op, value=value)
         else:
             criteria_by_field[field] = _CriterionSpec(field=field, op=op, value=value)
+    # categorical exact-match criteria from closed phrasings (last wins by field)
+    for _cfd, _cval in _extract_categorical(text):
+        criteria_by_field[_cfd] = _CriterionSpec(field=_cfd, op="==", value_str=_cval)
     criteria = _dedupe(list(criteria_by_field.values()))
     if not criteria:
         criteria = [_CriterionSpec(field="value")]
@@ -281,7 +313,9 @@ def _render(
     ]
     for idx, c in enumerate(criteria):
         lines.append(f"\nCRITERION criterion_{idx + 1}")
-        if c.op is not None and c.value is not None:
+        if c.value_str is not None:
+            lines.append(f'    FIELD {c.field} == "{c.value_str}"')
+        elif c.op is not None and c.value is not None:
             lines.append(f"    FIELD {c.field} {c.op} {_fmt(c.value)}")
         else:
             # no bound stated in the source text: emit warn severity + note

@@ -56,7 +56,9 @@ class MiterEngine:
             criteria[c.id] = {
                 "status": status,
                 "value": _fmt(value),
-                "threshold": _fmt(c.threshold),
+                "threshold": _fmt(
+                    c.threshold_str if c.threshold_str is not None else c.threshold
+                ),
                 "severity": c.severity,
             }
         interfaces: dict[str, Any] = {}
@@ -141,7 +143,12 @@ class MiterEngine:
         return json.dumps(report, sort_keys=True, indent=indent, ensure_ascii=False)
 
 
-def _fmt(v: float | None) -> float | None:
+def _fmt(v: float | None | str) -> float | None | str:
+    """Normalise a report value: None stays None, strings pass through exactly,
+    numbers are rounded to 6 places. String thresholds are compared exactly,
+    so they must not be mutated here."""
     if v is None:
         return None
+    if isinstance(v, str):
+        return v
     return round(float(v), 6)

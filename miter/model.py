@@ -17,7 +17,7 @@ import hashlib
 import json
 import math
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, Sequence
 
 Operator = Literal["<", "<=", ">", ">=", "==", "!="]
 Severity = Literal["error", "warn"]
@@ -25,6 +25,8 @@ AdjustOp = Literal["scale", "offset", "set"]
 
 OPS = ("<", "<=", ">", ">=", "==", "!=")
 ADJUST_OPS = ("scale", "offset", "set")
+AggregateFn = str  # "avg","sum","min","max","count"
+AGGREGATES = ("avg", "sum", "min", "max", "count")
 
 
 @dataclass
@@ -35,6 +37,7 @@ class Criterion:
     threshold: float
     severity: Severity = "error"
     note: str = ""
+    agg: str | None = None
 
     def evaluate(self, value: float | None) -> bool | None:
         """True = pass, False = fail, None = not applicable (missing field)."""
@@ -57,6 +60,32 @@ class Criterion:
         if self.op == "!=":
             return lhs != self.threshold
         raise ValueError(f"unknown operator {self.op!r}")
+    
+    def evaluate_many(self, values: Sequence[float | None]) -> bool | None:
+        """Aggregate evaluation over many rows. None = not applicable (empty pool)."""
+        if self.agg is None:
+            return None
+        if self.agg == "count":
+            if self.field == "*":
+                return self.evaluate(float(len(values)))
+            present = [v for v in values if v is not None]
+            return self.evaluate(float(len(present)))
+        clean = [v for v in values if v is not None]
+        if not clean:
+            return None
+        try:
+            clean_f = [float(v) for v in clean]
+        except (TypeError, ValueError):
+            return None
+        if self.agg == "avg":
+            return self.evaluate(sum(clean_f) / len(clean_f))
+        if self.agg == "sum":
+            return self.evaluate(sum(clean_f))
+        if self.agg == "min":
+            return self.evaluate(min(clean_f))
+        if self.agg == "max":
+            return self.evaluate(max(clean_f))
+        return None
 
 
 @dataclass
@@ -169,6 +198,7 @@ class Evaluation:
     criteria: list[Criterion] = field(default_factory=list)
     variations: list[Variation] = field(default_factory=list)
     interfaces: list[Interface] = field(default_factory=list)
+    notices: list[str] = field(default_factory=list)
 
     def spec_hash(self) -> str:
         """Deterministic hash of the spec source (for audit / linking)."""
@@ -178,8 +208,9 @@ class Evaluation:
                 "subject": self.subject,
                 "inputs": self.inputs,
                 "criteria": [
-                    (c.id, c.field, c.op, c.threshold, c.severity) for c in self.criteria
+                    (c.id, c.field, c.op, c.threshold, c.severity, c.agg) for c in self.criteria
                 ],
+                "notices": self.notices,
                 "variations": [
                     (v.id, [(a.op, a.field, a.value) for a in v.adjustments])
                     for v in self.variations

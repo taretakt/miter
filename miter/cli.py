@@ -64,12 +64,15 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"wrote {args.out}")
             else:
                 print(text)
-            return 1 if report["summary"].get("FAIL", 0) else 0
+            # exit 1 if any row failed OR any error-severity aggregate failed
+            return 1 if (report["summary"].get("FAIL", 0) or report.get("verdict") == "FAIL") else 0
         if args.command == "lint":
             spec = parse(open(args.spec, encoding="utf-8").read())
             print(f"OK {spec.name}: {len(spec.criteria)} criteria, "
                   f"{len(spec.variations)} variations, {len(spec.interfaces)} interfaces "
                   f"({spec.spec_hash()})")
+            for n in spec.notices:
+                print(f"NOTICE: {n}")
             return 0
         if args.command == "compile":
             text = args.text

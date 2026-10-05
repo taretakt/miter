@@ -45,6 +45,8 @@ class MiterEngine:
     def _evaluate_flat(self, row: dict[str, Any]) -> dict[str, Any]:
         criteria: dict[str, Any] = {}
         for c in self.evaluation.criteria:
+            if c.agg is not None:
+                continue  # aggregates are dataset-level; evaluated in evaluate_all
             value = nested_get(row, c.field)
             result = c.evaluate(value)
             if result is None:
@@ -84,6 +86,9 @@ class MiterEngine:
         counts = {"PASS": 0, "FAIL": 0}
         for r in rows_out:
             counts[r["verdict"]] += 1
+        # evaluate aggregates across the dataset
+        aggregates = self._evaluate_aggregates(rows)
+        agg_fail = any(a["status"] == "FAIL" and a["severity"] == "error" for a in aggregates)
         return {
             "spec": {
                 "name": self.evaluation.name,
@@ -92,7 +97,44 @@ class MiterEngine:
             },
             "summary": {"rows": len(rows_out), **counts},
             "results": rows_out,
+            "aggregates": aggregates,
+            "verdict": "FAIL" if agg_fail else "PASS",
         }
+
+    def _evaluate_aggregates(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for c in self.evaluation.criteria:
+            if c.agg is None:
+                continue
+            values = [nested_get(r, c.field) if c.field != "*" else None for r in rows]
+            result = c.evaluate_many(values)
+            if result is None:
+                status = "NA"
+            else:
+                status = "PASS" if result else "FAIL"
+            out.append({
+                "id": c.id,
+                "agg": c.agg,
+                "field": c.field,
+                "status": status,
+                "threshold": c.threshold,
+                "severity": c.severity,
+            })
+            if c.agg == "count":
+                if c.field == "*":
+                    out[-1]["value"] = len(rows)
+                else:
+                    out[-1]["value"] = sum(1 for v in values if v is not None)
+            elif c.agg in ("avg",) and status in ("PASS", "FAIL"):
+                clean = [float(v) for v in values if v is not None]
+                out[-1]["value"] = sum(clean) / len(clean) if clean else None
+            elif c.agg == "sum" and status in ("PASS", "FAIL"):
+                clean = [float(v) for v in values if v is not None]
+                out[-1]["value"] = sum(clean) if clean else None
+            elif c.agg in ("min", "max") and status in ("PASS", "FAIL"):
+                clean = [float(v) for v in values if v is not None]
+                out[-1]["value"] = (min if c.agg == "min" else max)(clean) if clean else None
+        return out
 
     def to_json(self, rows: list[dict[str, Any]], indent: int = 2) -> str:
         report = self.evaluate_all(rows)

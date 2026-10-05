@@ -2,6 +2,8 @@
 
 *Empirical. Every claim below was probed against the running tool on 2026-10-05 (parser, compiler, and engine), not deduced from the README.*
 
+**v0.2.0, shipped 2026-10-05: candidate extensions 1 (aggregates) and 3 (NOTICE) are BUILT and tested — 44 tests green.** The boundaries below were re-verified against the running tool after the change.
+
 ---
 
 ## The envelope in one sentence
@@ -79,9 +81,9 @@ CRITERION criterion_1
 
 ## Candidate extensions (all determinism-preserving)
 
-1. **Aggregate criteria** — `FIELD AVG(x) >= t`, `COUNT(...)`, `PCT(...)` evaluated over the row set. Directly unlocks batch-QC, the actual use case.
+1. ~~**Aggregate criteria**~~ **DONE in v0.2.0** — `AVG/SUM/MIN/MAX/COUNT` implemented (`FIELD AVG(x) >= t`); `PCT(...)` still open.
 2. **Categorical equality** — `FIELD tag == "urgent"` as exact-match (string or enum), deterministic by construction.
-3. **A `NOTICE` verb in the compiler** — report unrecognized structure instead of field-izing it (§5 fix). Smallest change, prevents the worst failure mode.
+3. ~~**A `NOTICE` verb**~~ **DONE in v0.2.0** — compiler emits `NOTICE <category> semantics not supported...` lines; CLI prints them.
 4. **Two-leg interfaces** — `FROM row.key TO row.key` matching across subjects by a join key, still deterministic.
 5. **Window clause** — `WITHIN 30d` on criteria/interfaces, requiring a TIME input and a deterministic sliding evaluation. Larger; do after (1)–(3).
 

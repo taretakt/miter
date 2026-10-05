@@ -42,6 +42,30 @@ END
 - [docs/positioning.md](docs/positioning.md) — the full problem framing: why the transition, why determinism, who it's for
 - [docs/bounding-analysis.md](docs/bounding-analysis.md) — empirically probed boundaries: what the DSL can and cannot express, and what to add next
 
+## Dataset-level aggregates (v0.2)
+
+A `FIELD AVG(x) >= t` criterion is evaluated across the row set, not per row:
+
+- `AVG(x)` `SUM(x)` `MIN(x)` `MAX(x)` over non-null values
+- `COUNT(*)` or `COUNT(field)` — row count
+- Empty pools evaluate to `N/A` (except `COUNT`, which is always defined)
+- An error-severity aggregate failure fails the whole evaluation (exit 1)
+
+```text
+CRITERION coverage_ok
+    FIELD AVG(classification_rate) >= 0.9
+    SEVERITY error
+```
+
+Deterministic: same spec + same rows -> byte-identical report, aggregates included.
+
+## Compiler notices (v0.2)
+
+The natural-language compiler flags structure the deterministic core cannot express
+(windowed/temporal rules, conditionals, categorical checks) and emits a `NOTICE` line
+into the spec instead of silently pretending. A compiled spec with a notice is a
+*draft that needs a human*, and the CLI prints the notice to stderr beside the output.
+
 ## The three primitives
 
 - **Criteria** — what "passing" means for a field: a threshold and an operator.

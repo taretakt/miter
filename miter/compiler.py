@@ -66,6 +66,12 @@ _CLAUSE_SPLIT = re.compile(r"\s+(?:and|as well as)\s+|,\s+")
 
 _WORD = re.compile(r"[^a-z0-9]+")
 
+# Patterns for detecting structure the deterministic core cannot express
+_LOST_STRUCTURE: list[tuple[str, str]] = [
+    ("windowed/temporal", r"(?:no more than|at most|at least|fewer than) [a-z0-9]+ (?:[a-z]+ ){0,4}?(?:in|within|over) (?:[a-z0-9]+ )?(?:days?|weeks?|months?|years?)|(?:per|in|within|over|every) (?:[a-z0-9]+ )?(?:days?|weeks?|months?|years?)|rolling|window(?:ed)?|consecutive"),
+    ("conditional", r"(?:^| |,)(?:if|unless|when(?:ever)?|provided(?: that)?|then)(?=(?: |,|$))"),
+    ("categorical/string", r"classified as|tagged as|labeled as|status must be|type must be"),
+]
 
 @dataclass
 class CompileResult:
@@ -252,7 +258,12 @@ def compile_text(text: str) -> CompileResult:
             if m3:
                 interfaces.append(("iface_1", "velocity", _snake(m3.group("l")), 0.1))
 
-    spec = _render(subject, [c.field for c in criteria], criteria, interfaces)
+    # detect structure the core cannot express -> NOTICE lines in the spec
+    for category, pat_str in _LOST_STRUCTURE:
+        if re.search(pat_str, text, re.I):
+            notice = category + " semantics not supported in the deterministic core - compiled as a plain field check"
+            notes.append(notice)
+    spec = _render(subject, [c.field for c in criteria], criteria, interfaces, notices=notes)
     return CompileResult(spec_text=spec, source="deterministic", notes=notes)
 
 
@@ -261,6 +272,7 @@ def _render(
     fields: list[str],
     criteria: list[_CriterionSpec],
     interfaces: list[tuple[str, str, str, float]],
+    notices: list[str] | None = None,
 ) -> str:
     lines = [
         "EVALUATION compiled_evaluation",
@@ -281,6 +293,8 @@ def _render(
         lines.append(f"    FROM {subject} TO {lf}")
         lines.append(f"    MATCH {mf} TO {lf}")
         lines.append(f"    TOLERANCE {tol}")
+    for n in (notices or []):
+        lines.append(f"NOTICE {n}")
     lines.append("\nEND")
     return "\n".join(lines)
 

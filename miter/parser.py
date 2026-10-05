@@ -46,10 +46,11 @@ from .model import (
     OPS,
     Severity,
     Variation,
+    AGGREGATES,
 )
 
 BLOCK_KEYWORDS = {"CRITERION", "VARIATION", "INTERFACE"}
-TOP_LEVEL = {"EVALUATION", "SUBJECT", "INPUTS", "CRITERION", "VARIATION", "INTERFACE", "END"}
+TOP_LEVEL = {"EVALUATION", "SUBJECT", "INPUTS", "CRITERION", "VARIATION", "INTERFACE", "NOTICE", "END"}
 
 
 class MiterError(Exception):
@@ -124,6 +125,7 @@ def parse(source: str) -> Evaluation:
     criteria: list[Criterion] = []
     variations: list[Variation] = []
     interfaces: list[Interface] = []
+    notices: list[str] = []
     blocks: list[_Block] = []
     cur: _Block | None = None
     in_block = False
@@ -150,6 +152,8 @@ def parse(source: str) -> Evaluation:
                 cur = _parse_block_header(content, lineno)
                 blocks.append(cur)
                 in_block = True
+            elif kw == "NOTICE":
+                notices.append(" ".join(parts[1:]))
             elif kw == "END":
                 ended = True
                 break
@@ -177,6 +181,8 @@ def parse(source: str) -> Evaluation:
                         subject = " ".join(parts[1:])
                     elif kw == "INPUTS":
                         inputs = parts[1:]
+                    elif kw == "NOTICE":
+                        notices.append(" ".join(parts[1:]))
                     else:
                         raise MiterError(
                             f"line {lineno}: block {cur_id!r} closed by unexpected {kw!r}"
@@ -205,6 +211,7 @@ def parse(source: str) -> Evaluation:
         criteria=criteria,
         variations=variations,
         interfaces=interfaces,
+        notices=notices,
     )
 
 
@@ -214,6 +221,7 @@ def _build_criterion(blk: _Block) -> Criterion:
     threshold: float | None = None
     severity: Severity = "error"
     note = ""
+    agg: str | None = None
     for lineno, content in blk.lines:
         parts = content.split()
         kw = parts[0]
@@ -222,7 +230,23 @@ def _build_criterion(blk: _Block) -> Criterion:
                 raise MiterError(
                     f"line {lineno}: FIELD needs `path <op> <value>` with op in {OPS}"
                 )
-            field, op = parts[1], parts[2]
+            raw = parts[1]
+            import re as _re
+            m = _re.match(r"^([a-z]+)\((.+)\)$", raw, _re.I)
+            if m:
+                fn = m.group(1).lower()
+                if fn not in AGGREGATES:
+                    raise MiterError(
+                        f"line {lineno}: unknown aggregate function {m.group(1)!r}; supported: {', '.join(sorted(AGGREGATES))}"
+                    )
+                agg = fn
+                field = m.group(2).strip()
+                if agg == "count" and (field == "*" or field == ""):
+                    field = "*"
+            else:
+                field = raw
+                agg = None
+            op = parts[2]
             threshold = _parse_number(parts[3])
         elif kw.upper() == "SEVERITY":
             if len(parts) < 2 or parts[1].lower() not in ("error", "warn"):
@@ -234,7 +258,7 @@ def _build_criterion(blk: _Block) -> Criterion:
             raise MiterError(f"line {lineno}: unknown CRITERION directive {kw!r}")
     if field is None or op is None or threshold is None:
         raise MiterError(f"CRITERION {blk.id!r} is missing a FIELD line")
-    return Criterion(id=blk.id, field=field, op=op, threshold=threshold, severity=severity, note=note)
+    return Criterion(id=blk.id, field=field, op=op, threshold=threshold, severity=severity, note=note, agg=agg)
 
 
 def _build_variation(blk: _Block) -> Variation:

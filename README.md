@@ -37,6 +37,10 @@ INTERFACE merge_onto_expressway
 END
 ```
 
+## Documentation
+
+- [docs/positioning.md](docs/positioning.md) — the full problem framing: why the transition, why determinism, who it's for
+
 ## The three primitives
 
 - **Criteria** — what "passing" means for a field: a threshold and an operator.

@@ -160,11 +160,13 @@ def test_row_evaluation_untouched_by_aggregates():
 
 # ---------- compiler notices ----------
 
-def test_temporal_phrase_gets_notice():
+def test_temporal_phrase_now_compiles():
+    """v0.6: the windowed phrasing compiles to a real WITHIN rule (no NOTICE)."""
     res = compile_text("no more than two missed deliveries in thirty days")
     assert res.valid
     ev = parse(res.spec_text)
-    assert any("window" in n.lower() for n in ev.notices)
+    assert ev.criteria[0].within_s == 30 * 86400
+    assert not any("not supported" in n.lower() for n in ev.notices)
 
 
 def test_conditional_phrase_gets_notice():

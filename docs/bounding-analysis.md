@@ -85,6 +85,8 @@ CRITERION criterion_1
 2. ~~**Categorical equality**~~ **DONE in v0.3.0** — `FIELD tag == \"urgent\"`, `==`/`!=` only; compiler closed phrasings (`tagged as X`, `status must be X`) emit it directly.
 3. ~~**A `NOTICE` verb**~~ **DONE in v0.2.0** — compiler emits `NOTICE <category> semantics not supported...` lines; CLI prints them.
 4. ~~**Two-leg interfaces**~~ **DONE in v0.4.0** — `JOIN <key>` pairs rows 1:1 (no counterpart -> NA, >2 -> non-unique MISMATCHED); budget on entity-side TIME; dataset-level like aggregates.
+6. ~~**NL compiler catch-up**~~ **DONE in v0.6.0** — windowed + aggregate phrasings compile into real specs (drafts with warn + NOTE), NOTICE retires for them.
+
 5. ~~**Window clause**~~ **DONE in v0.5.0** — `WITHIN <duration>` + `TIME <field>` + `LIMIT <n>`; dataset-level rolling rule; NA on missing time; O(n^2) deterministic scan (batches, not fleets).
 
 ## Explicitly refuse (keep the boundary)

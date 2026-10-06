@@ -45,7 +45,7 @@ _UNIT_MAP: dict[str, float] = {
     "tons": 1.0, "tonnes": 1.0,
 }
 
-_NUM = r"(\d+(?:\.\d+)?)"
+_NUM = r"(-?\d+(?:\.\d+)?)"
 _UNIT = r"(?:hours?|minutes?|min|seconds?|sec|km/h|kph|kmh|%|percent|kg|kilograms|tons|tonnes)?"
 
 # (pattern, operator) — matched against the full lowercased text
@@ -58,6 +58,7 @@ _THRESHOLD_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(rf"minimum of\s+{_NUM}\s*({_UNIT})", re.I), ">="),
     (re.compile(rf"more than\s+{_NUM}\s*({_UNIT})", re.I), ">"),
     (re.compile(rf"over\s+{_NUM}\s*({_UNIT})", re.I), ">"),
+    (re.compile(rf"above\s+{_NUM}\s*({_UNIT})", re.I), ">"),
     (re.compile(rf"exactly\s+{_NUM}\s*({_UNIT})", re.I), "=="),
 ]
 
@@ -66,9 +67,131 @@ _CLAUSE_SPLIT = re.compile(r"\s+(?:and|as well as)\s+|,\s+")
 
 _WORD = re.compile(r"[^a-z0-9]+")
 
+_NUM_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+    "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19,
+    "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+    "seventy": 70, "eighty": 80, "ninety": 90, "hundred": 100,
+}
+
+
+def _word_number(text: str) -> int | None:
+# tiny word-number reader; None = unparsable
+    t = text.strip().lower()
+    if not t:
+        return None
+    if t.isdigit():
+        return int(t)
+    words = t.split()
+    if len(words) == 1:
+        return _NUM_WORDS.get(words[0])
+    if len(words) == 2 and words[1] == "hundred" and words[0] in _NUM_WORDS and _NUM_WORDS[words[0]] < 10:
+        return _NUM_WORDS[words[0]] * 100
+    if len(words) == 2 and words[0] in _NUM_WORDS and words[1] in _NUM_WORDS:
+        a, b = _NUM_WORDS[words[0]], _NUM_WORDS[words[1]]
+        if a >= 20 and b < 10:
+            return a + b
+    return None
+
+
+def _inputs_field(field: str) -> str:
+# strip an AVG(coverage) wrapper down to the inner field for INPUTS
+    m = re.match(r"^([a-z]+)\((.*)\)$", field, re.I)
+    return m.group(2) if m else field
+
+
+def _fmt_duration(s: float) -> str:
+    if s % 86400 == 0:
+        return f"{int(s // 86400)}d"
+    if s % 3600 == 0:
+        return f"{int(s // 3600)}h"
+    if s % 60 == 0:
+        return f"{int(s // 60)}m"
+    return f"{s:g}s"
+
+
+_AGG_FN = {
+    "average": "AVG", "avg": "AVG", "mean": "AVG",
+    "sum": "SUM", "total": "SUM", "minimum": "MIN", "min": "MIN",
+    "maximum": "MAX", "max": "MAX", "count": "COUNT",
+}
+
+_AGG_HEAD = re.compile(
+    r"(?:the )?(?:average|avg|mean|sum|total|minimum|min|maximum|max|count) "
+    r"(?:of )?(?:the )?(?P<field>[a-z][a-z0-9_ ]*?) "
+    r"(?:must|should|needs? to|has|is|are|stays?|remains?)?(?: be)?(?: at)?"
+    r"(?= (?:at least|above|over|under|below|less than|more than|no more than|must not exceed|not exceed|exactly|[<>=]|==))",
+    re.I,
+)
+
+_WINDOW_HEAD_BARE = re.compile(
+    r"(?:no more than|at most|fewer than|less than) (?P<lim>[a-z0-9]+) (?P<field>[a-z0-9_ ]+?)$",
+    re.I,
+)
+
+
+_WINDOW_HEAD = re.compile(
+    r"(?:no more than|at most|fewer than|less than) (?P<lim>[a-z0-9]+) "
+    r"(?P<field>[a-z0-9_ ]+?) (?:in|within|over|per) "
+    r"(?:(?:any|a|the) )?(?P<n>[a-z0-9]+) (?P<unit>days?|weeks?|months?|years?)",
+    re.I,
+)
+
+_UNIT_DAYS = {"day": 1, "days": 1, "week": 7, "weeks": 7, "month": 30, "months": 30, "year": 365, "years": 365}
+
+
+def _extract_window(text: str) -> dict | None:
+    """Rolling-limit phrases: "no more than two missed deliveries in thirty days"."""
+    m = _WINDOW_HEAD.search(text)
+    if not m:
+        m = _WINDOW_HEAD_BARE.search(text)
+        if not m:
+            return None
+        lim = _word_number(m.group("lim"))
+        note = "window drafted from phrase"
+        if lim is None:
+            note += "; LIMIT not parsed - edit this bound"
+        note += "; window length not stated - edit WITHIN (default 7d)"
+        return {"field": _snake(m.group("field")), "limit": lim, "within_s": 7 * 86400, "note": note}
+    return _window_from_match(m)
+def _window_from_match(m: re.Match) -> dict:
+    lim = _word_number(m.group("lim"))
+    n = _word_number(m.group("n"))
+    unit = m.group("unit").lower()
+    note = "window drafted from phrase"
+    if lim is None:
+        note += "; LIMIT not parsed - edit this bound"
+    if n is None:
+        within = 7 * 86400
+        note += "; window length not parsed - edit WITHIN (default 7d)"
+    else:
+        within = n * _UNIT_DAYS.get(unit, 1) * 86400
+        if unit not in _UNIT_DAYS:
+            note += "; window unit unknown - edit WITHIN"
+    return {"field": _snake(m.group("field")), "limit": lim, "within_s": within, "note": note}
+
+
+def _extract_aggregate(text: str) -> dict | None:
+    """Aggregate phrases: "average coverage must be at least 90 percent"."""
+    m = _AGG_HEAD.search(text)
+    if not m:
+        return None
+    fn = _AGG_FN.get(m.group(0).split()[0].lower())
+    field = _snake(_field_from_clause(m.group("field"))) or "value"
+    tail = text[m.end():]
+    for pat, op in _THRESHOLD_PATTERNS:
+        tm = pat.search(tail)
+        if tm:
+            num = _scale(tm.group(2), float(tm.group(1)))
+            return {"fn": fn, "field": field, "op": op, "value": num}
+    return {"fn": fn, "field": field, "op": None, "value": None}
+
+
 # Patterns for detecting structure the deterministic core cannot express
 _LOST_STRUCTURE: list[tuple[str, str]] = [
-    ("windowed/temporal", r"(?:no more than|at most|at least|fewer than) [a-z0-9]+ (?:[a-z]+ ){0,4}?(?:in|within|over) (?:[a-z0-9]+ )?(?:days?|weeks?|months?|years?)|(?:per|in|within|over|every) (?:[a-z0-9]+ )?(?:days?|weeks?|months?|years?)|rolling|window(?:ed)?|consecutive"),
+    ("rolling/consecutive", r"rolling|consecutive"),
     ("conditional", r"(?:^| |,)(?:if|unless|when(?:ever)?|provided(?: that)?|then)(?=(?: |,|$))"),
     ("categorical/string", r"one of|in (?:the )?set|list of allowed|allowed values|any of|equals orders? of"),
 ]
@@ -96,6 +219,10 @@ class _CriterionSpec:
     op: str | None = None  # None = no bound stated in source text
     value: float | None = None
     value_str: str | None = None  # categorical: exact string match
+    within_s: float | None = None  # windowed: WITHIN <duration>
+    time_field: str = "t"
+    limit: int | None = None  # windowed: LIMIT <n>
+    note: str = ""
 
 
 def _snake(s: str) -> str:
@@ -218,10 +345,20 @@ def compile_text(text: str) -> CompileResult:
     subject = _extract_subject(text)
     notes: list[str] = []
 
+    # 0. windowed + aggregate phrasings are compiled, not lost
+    win = _extract_window(t)
+    agg = _extract_aggregate(t)
+    wm = _WINDOW_HEAD.search(t) if win else None
+    am = _AGG_HEAD.search(t) if agg else None
+
     # 1. thresholds anywhere in the text
     bounds: list[tuple[str, str, float]] = []  # (field, op, scaled value)
     for pat, op in _THRESHOLD_PATTERNS:
         for m in pat.finditer(t):
+            if wm is not None and wm.start() <= m.start() <= wm.end():
+                continue  # part of the compiled window phrase
+            if am is not None and any(f"{w}_" in _snake(_field_from_clause(t[: m.start()])) for w in _AGG_FN):
+                continue  # part of the compiled aggregate phrase
             value_text = m.group(2) if m.lastindex and m.lastindex >= 2 else (m.group(1) if len(m.groups()) == 1 else "")
             num = float(m.group(1))
             scaled = _scale(value_text, num)
@@ -232,6 +369,10 @@ def compile_text(text: str) -> CompileResult:
     _criteria: list[_CriterionSpec] = []
     for part in _CLAUSE_SPLIT.split(t):
         if any(re.search(p, _clean(part)) for p in _CATEGORICAL_PATTERNS):
+            continue
+        if win is not None and (_WINDOW_HEAD.search(_clean(part)) or _WINDOW_HEAD_BARE.search(_clean(part))):
+            continue
+        if agg is not None and _AGG_HEAD.search(_clean(part)):
             continue
         name = _snake(_field_from_clause(part))
         if name and re.fullmatch(r"[a-z_]+", name):
@@ -248,6 +389,15 @@ def compile_text(text: str) -> CompileResult:
     # categorical exact-match criteria from closed phrasings (last wins by field)
     for _cfd, _cval in _extract_categorical(text):
         criteria_by_field[_cfd] = _CriterionSpec(field=_cfd, op="==", value_str=_cval)
+    # compiled aggregate + window criteria (deterministic, tagged as drafts)
+    if agg is not None:
+        agg_field = f"{agg['fn']}({agg['field']})"
+        criteria_by_field[agg_field] = _CriterionSpec(field=agg_field, op=agg["op"], value=agg["value"])
+    if win is not None:
+        criteria_by_field[win["field"]] = _CriterionSpec(
+            field=win["field"], op="<=", value=0.0,
+            within_s=win["within_s"], limit=win["limit"], note=win["note"],
+        )
     criteria = _dedupe(list(criteria_by_field.values()))
     if not criteria:
         criteria = [_CriterionSpec(field="value")]
@@ -309,7 +459,7 @@ def _render(
     lines = [
         "EVALUATION compiled_evaluation",
         f"SUBJECT {subject}",
-        "INPUTS " + " ".join(sorted(set(fields))),
+        "INPUTS " + " ".join(sorted(set(map(_inputs_field, fields)))),
     ]
     for idx, c in enumerate(criteria):
         lines.append(f"\nCRITERION criterion_{idx + 1}")
@@ -317,6 +467,12 @@ def _render(
             lines.append(f'    FIELD {c.field} == "{c.value_str}"')
         elif c.op is not None and c.value is not None:
             lines.append(f"    FIELD {c.field} {c.op} {_fmt(c.value)}")
+        if c.within_s is not None:
+            lines.append(f"    WITHIN {_fmt_duration(c.within_s)}")
+            lines.append(f"    TIME {c.time_field}")
+            lines.append(f"    LIMIT {0 if c.limit is None else c.limit}")
+            lines.append("    SEVERITY warn")
+            lines.append(f"    NOTE {c.note or 'window drafted from phrase; edit this bound'}")
         else:
             # no bound stated in the source text: emit warn severity + note
             lines.append(f"    FIELD {c.field} <= 0.0")

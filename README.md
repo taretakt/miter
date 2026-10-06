@@ -101,6 +101,28 @@ Deterministic: stable time-sort (ties break by input order), inclusive
 NA rows never count as events. Times are seconds by default (shared with
 BUDGET durations); keep data and durations in one timebase.
 
+## The compiler catches up (v0.6)
+
+The deterministic NL compiler now emits real specs for the phrasings it used
+to warn about:
+
+```text
+"no more than two missed deliveries in thirty days"
+  -> FIELD missed_deliveries <= 0  WITHIN 30d  TIME t  LIMIT 2   (SEVERITY warn)
+
+"average coverage must be at least 90 percent"
+  -> FIELD AVG(coverage) >= 0.9
+
+"sum of load must not exceed 1000"          -> FIELD SUM(load) <= 1000
+"minimum temperature must stay above -40"   -> FIELD MIN(temperature) > -40
+```
+
+Compiled windows and aggregates are honest drafts: SEVERITY warn plus a NOTE
+naming exactly what must be reviewed (the predicate polarity, a word-number
+window length, an approximated month). The compiler guesses the encoding,
+never the data. The NOTICE verb remains for what is still inexpressible
+(rolling, consecutive, conditional, set membership).
+
 ## Two-leg interfaces (v0.4)
 
 The ghost car with an actual exchange: an interface whose two legs are

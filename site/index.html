@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MITER — deterministic workflow evaluation</title>
+<link rel="icon" type="image/svg+xml" href="mark.svg">
+<meta property="og:title" content="MITER — deterministic workflow evaluation">
+<meta property="og:image" content="https://shuto.ca/miter/og.png">
+<meta property="og:type" content="website">
 <meta name="description" content="MITER is a deterministic, natural-language-driven evaluation DSL for workflows that fail at transitions. Same spec, same data, same verdict — every run.">
 <style>
   :root{
@@ -36,10 +40,9 @@
     display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
     padding:20px 28px 18px;
   }
-  .mark{
-    font-family:ui-monospace, Consolas, monospace; font-weight:700;
-    letter-spacing:.04em; font-size:15px;
-  }
+  .mark{display:flex; align-items:center; gap:10px;}
+  .markname{font-family:ui-monospace, Consolas, monospace; font-weight:700;
+    letter-spacing:.04em; font-size:15px;}
   .githublink{margin-left:auto; font-size:14px; text-decoration:none; border-bottom:1px solid var(--line);}
   .githublink:hover{background:#d8d4cc;}
 
@@ -178,7 +181,7 @@
 <body>
 
 <header class="top">
-  <div class="mark">MITER<span style="color:var(--muted)"> · v0.6.0</span></div>
+  <div class="mark"><svg viewBox="0 0 120 120" width="22" height="22" aria-hidden="true"><line x1="14" y1="36" x2="106" y2="36" stroke="#141414" stroke-width="9"/><line x1="14" y1="84" x2="106" y2="84" stroke="#141414" stroke-width="9"/><rect x="22" y="54" width="18" height="12" fill="#141414"/><line x1="66" y1="36" x2="66" y2="84" stroke="#1a6b3c" stroke-width="6"/><line x1="56" y1="36" x2="76" y2="36" stroke="#1a6b3c" stroke-width="6"/><line x1="56" y1="84" x2="76" y2="84" stroke="#1a6b3c" stroke-width="6"/></svg><span class="markname">MITER</span><span style="color:var(--muted)"> · v0.6.0</span></div>
   <a class="githublink" href="https://github.com/taretakt/miter" target="_blank" rel="noopener">github.com/taretakt/miter ↗</a>
 </header>
 

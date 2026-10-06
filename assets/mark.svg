@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="MITER mark: an entity between two lanes, measured within tolerance">
+  <!-- rails: the entity's lane and the receiving lane -->
+  <line x1="14" y1="36" x2="106" y2="36" stroke="#141414" stroke-width="6" stroke-linecap="square"/>
+  <line x1="14" y1="84" x2="106" y2="84" stroke="#141414" stroke-width="6" stroke-linecap="square"/>
+  <!-- the entity in transit between lanes -->
+  <rect x="22" y="54" width="18" height="12" fill="#141414"/>
+  <!-- the tolerance caliper: the match, closed in emerald (the one loud thing) -->
+  <line x1="66" y1="36" x2="66" y2="84" stroke="#1a6b3c" stroke-width="4" stroke-linecap="square"/>
+  <line x1="56" y1="36" x2="76" y2="36" stroke="#1a6b3c" stroke-width="4" stroke-linecap="square"/>
+  <line x1="56" y1="84" x2="76" y2="84" stroke="#1a6b3c" stroke-width="4" stroke-linecap="square"/>
+</svg>

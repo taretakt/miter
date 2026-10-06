@@ -1,6 +1,6 @@
 # MITER
 
-[![tests](https://github.com/taretakt/miter/actions/workflows/test.yml/badge.svg)](https://github.com/taretakt/miter/actions/workflows/test.yml)
+[![tests](https://github.com/taretakt/miter/actions/workflows/ci.yml/badge.svg)](https://github.com/taretakt/miter/actions/workflows/ci.yml)
 
 **A deterministic workflow-evaluation DSL with a natural-language compiler.**
 

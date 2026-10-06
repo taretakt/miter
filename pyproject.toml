@@ -11,10 +11,6 @@ requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "taretakt" }]
 keywords = ["dsl", "evaluation", "workflow", "logistics", "compiler", "deterministic"]
-[project.urls]
-Homepage = "https://shuto.ca/miter/"
-Source = "https://github.com/taretakt/miter"
-
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -34,3 +30,7 @@ testpaths = ["tests"]
 dev = [
     "pytest>=9.1.1",
 ]
+
+[project.urls]
+Homepage = "https://shuto.ca/miter/"
+Source = "https://github.com/taretakt/miter"

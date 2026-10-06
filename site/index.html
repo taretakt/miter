@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MITER — deterministic workflow evaluation</title>
+<meta name="description" content="MITER is a deterministic, natural-language-driven evaluation DSL for workflows that fail at transitions. Same spec, same data, same verdict — every run.">
+<style>
+  :root{
+    --field:#e4e1db;      /* drained bone */
+    --field-2:#dad6cf;    /* recessed */
+    --ink:#141414;
+    --muted:#6f6c65;
+    --line:#1c1c1c;
+    --emerald:#1a6b3c;    /* the one loud thing */
+    --code-bg:#efece5;
+    --measure:64ch;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{background:var(--field); color:var(--ink);}
+  body{
+    font-family:ui-sans-serif, system-ui, "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+    font-size:17px; line-height:1.55;
+    background:var(--field); color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{
+    font-family:ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    font-size:.86em;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:0 28px;}
+
+  /* ---------- header ---------- */
+  header.top{
+    border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
+    padding:20px 28px 18px;
+  }
+  .mark{
+    font-family:ui-monospace, Consolas, monospace; font-weight:700;
+    letter-spacing:.04em; font-size:15px;
+  }
+  .githublink{margin-left:auto; font-size:14px; text-decoration:none; border-bottom:1px solid var(--line);}
+  .githublink:hover{background:#d8d4cc;}
+
+  /* ---------- hero ---------- */
+  .hero{padding:96px 28px 72px;}
+  .hero .kicker{
+    display:inline-block; font-family:ui-monospace, Consolas, monospace;
+    font-size:13px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--muted); border:1px solid var(--line); padding:3px 9px;
+  }
+  h1{
+    font-size:clamp(34px, 5.2vw, 58px); line-height:1.06;
+    max-width:var(--measure);
+    margin:26px 0 22px;
+  }
+  h1 .hl{padding:0 5px; background:#e8e5de; border-bottom:2px solid var(--ink);}
+  .lede{
+    font-size:19px; max-width:72ch; color:#2a2a28;
+    margin-bottom:34px;
+  }
+  .verdictbar{
+    display:flex; gap:15px; align-items:center;
+    border:2px solid var(--ink); background:#f0ede6;
+    padding:14px 20px; margin-top:14px;
+  }
+  .verdictbar .dot{width:15px; height:15px; border-radius:0; background:var(--emerald); flex:0 0 auto;}
+  .verdictbar p{font-size:16px; line-height:1.5;}
+  .verdictbar strong{font-weight:700;}
+
+  /* ---------- section frame ---------- */
+  section{
+    border-top:2px solid var(--ink);
+    padding:72px 28px;
+  }
+  .secnum{
+    font-family:ui-monospace, Consolas, monospace; font-size:13px;
+    display:block; margin-bottom:18px; letter-spacing:.08em; color:var(--muted);
+  }
+  h2{font-size:clamp(24px, 3vw, 34px); max-width:var(--measure); line-height:1.2; margin-bottom:20px;}
+  .body-copy{max-width:72ch; color:#242422;}
+
+  /* ---------- the problem ---------- */
+  .failures{list-style:none; counter-reset:fail; margin:34px 0 0;}
+  .failures li{
+    counter-increment:fail; position:relative; padding:22px 16px 22px 64px;
+    border:1px solid var(--line); margin:10px 0; background:var(--field-2);
+  }
+  .failures li::before{
+    content:"0" counter(fail);
+    position:absolute; left:16px; top:20px;
+    font-family:ui-monospace, Consolas, monospace; font-size:15px;
+  }
+  .failures li b{display:block; font-size:17px; margin-bottom:5px;}
+  .failures li span{font-size:15px; color:#3a3834;}
+
+  /* ---------- primitives ---------- */
+  .primitives{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin-top:30px;}
+  .prim{border:1px solid var(--line); padding:18px; background:var(--field-2);}
+  .prim .name{font-family:ui-monospace, Consolas, monospace; font-size:14px; display:block; margin-bottom:6px;}
+  .prim p{font-size:14.5px; color:#3a3834; line-height:1.5;}
+  .prim.note{border-style:dashed; background:transparent; color:var(--muted);}
+  pre.spec{
+    margin-top:26px;
+    background:var(--code-bg); border:1px solid var(--line); padding:20px 22px;
+    font-family:ui-monospace, Consolas, monospace; font-size:13.5px; line-height:1.5;
+    overflow-x:auto;
+  }
+  pre.spec .c{color:var(--muted);}
+  pre.spec .k{color:#334;}
+
+  /* ---------- demo ---------- */
+  .demo{display:grid; grid-template-columns:1fr; gap:26px; margin-top:30px;}
+  .demo .pane{border:1px solid var(--line); background:#f0ede6;}
+  .demo .pane h3{
+    font-family:ui-monospace, Consolas, monospace; font-size:12.5px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--muted);
+    border-bottom:1px solid var(--line); padding:9px 14px;
+  }
+  pre.out{
+    margin:0; padding:18px 20px; overflow-x:auto;
+    font-family:ui-monospace, Consolas, monospace; font-size:13px; line-height:1.55;
+  }
+  .out .ok{color:var(--emerald); font-weight:700;}
+  .out .bad{color:#8a2420; font-weight:700;}
+  .out .dim{color:var(--muted);}
+  .demo .caption{font-size:14.5px; color:#3a3834; border-top:1px dashed var(--line); padding:12px 14px;}
+  .demo-rule{
+    border:2px solid var(--ink); background:var(--field-2); padding:14px 18px;
+    font-size:15px; margin-top:22px;
+  }
+  .demo-rule b{color:var(--emerald);}
+
+  /* ---------- envelope ---------- */
+  table.env{width:100%; border-collapse:collapse; margin-top:26px; font-size:15px;}
+  table.env th, table.env td{
+    border:1px solid var(--line); padding:11px 14px; text-align:left; vertical-align:top;
+    font-family:ui-monospace, Consolas, monospace; font-size:13px;
+  }
+  table.env th{background:var(--field-2); font-weight:700;}
+  table.env td:last-child{font-family:ui-sans-serif, system-ui, sans-serif; font-size:14.5px; color:#3a3834;}
+  .refused{
+    border:1px solid var(--line); padding:18px 20px; background:transparent;
+  }
+  .refused .lead{display:block; font-size:15px; margin-bottom:8px;}
+  .refused ul{list-style:none; margin:8px 0 0;}
+  .refused li{padding-left:22px; font-size:14.5px; color:#3a3834;}
+  .refused li::before{content:"—"; color:var(--muted); display:inline-block; margin-right:8px;}
+
+  /* ---------- install ---------- */
+  pre.shell{
+    margin-top:26px; background:#efece5; border:1px solid var(--line); padding:20px 22px;
+    font-family:ui-monospace, Consolas, monospace; font-size:13.5px; line-height:1.6; overflow-x:auto;
+  }
+  .shell .pmt{color:var(--muted);}
+  .note-line{
+    border-top:1px solid var(--line); padding:16px 20px; margin-top:24px;
+    font-size:14.5px; color:#3a3834;
+  }
+
+  footer{
+    border-top:2px solid var(--ink); padding:40px 28px; font-size:14px;
+  }
+  footer .quote{font-family:ui-monospace, Consolas, monospace; font-size:13.5px; color:var(--muted); margin-bottom:10px;}
+
+  @media (max-width:640px){
+    .hero{padding:56px 20px 44px;}
+    section{padding:52px 20px;}
+    h1{font-size:32px;}
+    .verdictbar .dot{width:12px; height:12px;}
+  }
+  @media (prefers-reduced-motion:reduce){ *{transition:none;} }
+  @media print{ .wrap{max-width:100%;} section{page-break-inside:avoid;} }
+  a:focus-visible, .mono:focus-visible{outline:2px solid var(--ink); outline-offset:2px;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="mark">MITER<span style="color:var(--muted)"> · v0.6.0</span></div>
+  <a class="githublink" href="https://github.com/taretakt/miter" target="_blank" rel="noopener">github.com/taretakt/miter ↗</a>
+</header>
+
+<div class="hero wrap">
+  <div>
+    <span class="kicker">deterministic workflow evaluation</span>
+  </div>
+  <h1>Most evaluation tools check <span class="hl">states</span>.<br>MITER checks the transition.</h1>
+  <p class="lede">
+    Workflows are sequences of connected segments, and work fails at the join — an entity crossing
+    into a new lane must meet the receiving lane&rsquo;s conditions, inside a tolerance and a time
+    budget. MITER makes that constraint checkable instead of metaphorical: a deterministic DSL with
+    a natural-language compiler that turns plain English into executable evaluation specs.
+  </p>
+  <div class="verdictbar">
+    <span class="dot" aria-hidden="true"></span>
+    <p><strong>Verdicts must be reproducible or they are not verdicts.</strong>
+    Same spec + same data → byte-identical output, every run. No random, no sampling, no I/O in
+    evaluation. Across the whole grammar: six releases, ninety-one tests, still fully deterministic.</p>
+  </div>
+</div>
+
+<section class="wrap">
+  <span class="secnum">§ 01 — the problem</span>
+  <h2>Evaluation today fails in three quiet ways.</h2>
+  <div class="body-copy">
+  <p>None of them are loud failures. Each one looks like a working process until the handoff breaks.</p>
+  </div>
+  <ol class="failures">
+    <li><b>State-checks miss the handoff.</b>
+      <span>Both ends of a connection can read within spec and the link still breaks. The check that
+      matters is the moment of crossing — and most tools never look there.</span></li>
+    <li><b>Rubrics are prose.</b>
+      <span>Acceptance criteria live in documents and drift from the code that enforces them. A spec
+      should be versionable, diffable, and executable — not a paragraph on a wiki.</span></li>
+    <li><b>Verdicts aren&rsquo;t reproducible.</b>
+      <span>An LLM-as-judge outcome is an opinion with a timestamp. You can&rsquo;t audit it, you can&rsquo;t
+      re-run it, and you can&rsquo;t prove to a regulator that the same input always yields the same answer.</span></li>
+  </ol>
+</section>
+
+<section class="wrap">
+  <span class="secnum">§ 02 — the primitives</span>
+  <h2>Resolutions are cheap and transitions are steel.</h2>
+  <div class="body-copy">
+    <p>Everything formalizes one idea: the gating constraint in a workflow is the transition, not the
+    state. Three primitives cover the whole surface — conditions, edge cases, and the handoff itself.</p>
+  </div>
+  <div class="primitives">
+    <div class="prim">
+      <span class="name">CRITERION</span>
+      <p>A field against a bound —&nbsp;depot capacity under 95&nbsp;%, driver hours under 14. Error or warn;
+      error fails the row, warn flags it.</p>
+    </div>
+    <div class="prim">
+      <span class="name">VARIATION</span>
+      <p>An edge case applied as a deterministic perturbation — what happens to the same route at
+      peak volume. Same spec, stressed input.</p>
+    </div>
+    <div class="prim">
+      <span class="name">INTERFACE</span>
+      <p>The transition itself: an entity entering a lane must match the lane&rsquo;s conditions within
+      tolerance <em>and</em> time. Joins pair rows across subjects for real handoffs.</p>
+    </div>
+    <div class="prim note">
+      <p>Plus dataset-level criteria: aggregates (v0.2), categorical equality (v0.3), two-leg joins
+      (v0.4), and windowed rules (v0.5) — all in the same deterministic core.</p>
+    </div>
+  </div>
+  <pre class="spec"><span class="c"># route_feasibility.mtr — real example from the repo</span>
+EVALUATION route
+SUBJECT route
+INPUTS stops depot_capacity driver_hours
+
+CRITERION depot_within_capacity
+    FIELD depot_capacity <= 0.95
+    SEVERITY error
+
+<span class="k">VARIATION</span> peak_volume
+    ADJUST depot_capacity SCALE 1.2
+    NOTE what happens when volume spikes
+
+<span class="k">INTERFACE</span> merge_onto_expressway
+    FROM collector TO expressway
+    MATCH velocity TO lane_velocity
+    TOLERANCE 0.15
+    BUDGET 20m
+    TIME merge_t
+
+END</pre>
+</section>
+
+<section class="wrap">
+  <span class="secnum">§ 03 — the demo</span>
+  <h2>English in. Executable spec. Byte-identical verdicts.</h2>
+  <div class="body-copy">
+    <p>This is not a mockup. This is the actual output of the current build — one phrase compiled, one
+    dataset evaluated, the burst caught.</p>
+  </div>
+  <div class="demo">
+    <div class="pane">
+      <h3>compiler</h3>
+<pre class="out"><span class="pmt">$</span> miter compile "no more than two missed deliveries in thirty days"
+
+EVALUATION compiled_evaluation
+SUBJECT subject
+INPUTS missed_deliveries
+
+CRITERION criterion_1
+    FIELD missed_deliveries <= 0
+    WITHIN 30d
+    TIME t
+    LIMIT 2
+    SEVERITY warn
+    NOTE window drafted from phrase
+
+END</pre>
+      <div class="caption">The compiler guesses <em>encoding</em>, never data — compiled specs are
+      warn-severity drafts with a NOTE naming exactly what must be reviewed.</div>
+    </div>
+    <div class="pane">
+      <h3>verdict — 60 route-days, misses clustered at days 10–12–13</h3>
+<pre class="out">{
+  "summary":   { "rows": 60, "PASS": 57, "FAIL": 3 },
+  "windows":   [ { "id": "c1", "status": <span class="bad">"FAIL"</span>,
+                   "count": 3, "limit": 2, "within_s": 2592000 } ],
+  "verdict":   <span class="bad">"FAIL"</span>
+}
+
+<span class="dim">run again?  byte-identical.  hash: 964024e8cdae1027</span></pre>
+      <div class="caption">Three misses in a month is a normal week averaged out and a violation
+      windowed. The rule reads “at most 2 per 30 days” — the burst fails the evaluation, deterministically.</div>
+    </div>
+  </div>
+  <div class="demo-rule">
+    <b>No fabrication, anywhere.</b> Missing data is <span class="mono">N/A</span>, never a guess. An unparsed
+    phrase becomes a warn stub, never an invented threshold. The tool refuses to lie the way systems
+    quietly do.
+  </div>
+</section>
+
+<section class="wrap">
+  <span class="secnum">§ 04 — the envelope</span>
+  <h2>What the DSL expresses — and what it refuses.</h2>
+  <div class="body-copy">
+    <p>Five extensions, each shipped as its own version with its tests attached. The boundaries are
+    empirical, not aspirational — probed against the running tool in the bounding analysis.</p>
+  </div>
+  <table class="env">
+    <thead><tr><th>surface</th><th>since</th><th>what it handles</th></tr></thead>
+    <tbody>
+      <tr><td>criteria</td><td>v0.1</td><td>numeric thresholds against fields, error/warn severity</td></tr>
+      <tr><td>aggregates</td><td>v0.2</td><td>AVG / SUM / MIN / MAX / COUNT over the row set — batch QC</td></tr>
+      <tr><td>categorical</td><td>v0.3</td><td>exact string equality — FIELD tag == "urgent"</td></tr>
+      <tr><td>two-leg joins</td><td>v0.4</td><td>JOIN pairs rows across subjects — real dispatch handoffs</td></tr>
+      <tr><td>window clauses</td><td>v0.5</td><td>WITHIN 30d LIMIT 2 — bursts, not counts</td></tr>
+      <tr><td>compiler parity</td><td>v0.6</td><td>plain-English phrasings compile into all of the above</td></tr>
+    </tbody>
+  </table>
+  <div class="refused">
+    <span class="lead">Explicitly refused — the boundary is the product:</span>
+    <ul>
+      <li>LLM-as-judge inside a spec — a semantic criterion would break byte-determinism. The LLM
+      stays outside, as a producer of fields, never the verdict authority.</li>
+      <li>Random sampling — any sample clause is a silent lie.</li>
+      <li>I/O during evaluation — external calls make verdicts unrepairable.</li>
+      <li>Stateful sequences — if evaluation needs state, the state belongs to the caller, given to
+      MITER as input fields.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="wrap">
+  <span class="secnum">§ 05 — use it</span>
+  <h2>Install and run.</h2>
+  <pre class="shell"><span class="pmt">$</span> pip install git+https://github.com/taretakt/miter
+<span class="pmt">$</span> miter lint route_feasibility.mtr
+<span class="pmt">$</span> miter run route_feasibility.mtr --data routes.json
+<span class="pmt">$</span> miter compile "the route must respect depot capacity and driver hours"</pre>
+  <div class="note-line">Works offline, no services required. The interpreter, the compiler, and the
+  full test suite are in one small repository — read the whole thing in an afternoon, audit it in an
+  evening. MIT license, no telemetry, no accounts.</div>
+</section>
+
+<footer class="wrap">
+  <p class="quote">"an entity entering a new network segment must match the receiving lane's conditions within tolerance and time budget"</p>
+  <p>MITER v0.6.0 · MIT license · <a href="https://github.com/taretakt/miter" target="_blank" rel="noopener">github.com/taretakt/miter</a> ·
+  deterministically evaluating the places work actually fails.</p>
+</footer>
+
+</body>
+</html>

@@ -1,5 +1,7 @@
 # MITER
 
+[![tests](https://github.com/taretakt/miter/actions/workflows/test.yml/badge.svg)](https://github.com/taretakt/miter/actions/workflows/test.yml)
+
 **A deterministic workflow-evaluation DSL with a natural-language compiler.**
 
 Most evaluation tools check *states*: is this field under its threshold?

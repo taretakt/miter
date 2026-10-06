@@ -75,6 +75,32 @@ CRITERION is_urgent
   `<subject> tagged/classified/labeled as <value>` and
   `status/type/category/class must be <value>` — no NOTICE needed for those forms.
 
+## Window clauses (v0.5)
+
+Rolling-limit semantics: a criterion may carry a time window and a burst bound.
+
+```text
+CRITERION missed_stop
+    FIELD on_time >= 1
+    WITHIN 30d
+    TIME event_t
+    LIMIT 2
+    SEVERITY error
+END
+```
+
+The criterion still evaluates every row. WITHIN adds a dataset-level rule:
+rows where the criterion FAILs are events on the timeline; if **any** window
+of the given length contains more than `limit` events (default 0, meaning no
+failures permitted in any window), the rule fails -- and with error severity
+it fails the whole evaluation. A row with a missing or non-numeric TIME
+makes the timeline unenumerable, so the rule returns NA rather than guess.
+
+Deterministic: stable time-sort (ties break by input order), inclusive
+`[t, t + duration]` windows, O(n^2) scan by design -- batches, not fleets.
+NA rows never count as events. Times are seconds by default (shared with
+BUDGET durations); keep data and durations in one timebase.
+
 ## Two-leg interfaces (v0.4)
 
 The ghost car with an actual exchange: an interface whose two legs are

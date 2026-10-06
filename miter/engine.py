@@ -94,8 +94,9 @@ class MiterEngine:
             counts[r["verdict"]] += 1
         # evaluate aggregates across the dataset
         aggregates = self._evaluate_aggregates(rows)
+        windows = self._evaluate_windows(rows)
         agg_fail = any(a["status"] == "FAIL" and a["severity"] == "error" for a in aggregates)
-        return {
+        report = {
             "spec": {
                 "name": self.evaluation.name,
                 "subject": self.evaluation.subject,
@@ -103,9 +104,13 @@ class MiterEngine:
             },
             "summary": {"rows": len(rows_out), **counts},
             "results": rows_out,
+            "windows": windows,
             "aggregates": aggregates,
-            "verdict": "FAIL" if agg_fail else "PASS",
+            "verdict": "FAIL" if (agg_fail or any(w["status"] == "FAIL" and w["severity"] == "error" for w in windows)) else "PASS",
         }
+        if not windows:
+            report.pop("windows", None)
+        return report
 
     def _evaluate_aggregates(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
@@ -176,6 +181,52 @@ class MiterEngine:
         for r in rows_out:
             base = {"criteria": r["criteria"], "interfaces": r["interfaces"]}
             r["verdict"] = self._verdict(base, r["variations"])
+
+    def _evaluate_windows(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Dataset-level rolling-limit rules (WITHIN <duration> on a criterion).
+
+        Rows where the criterion FAILs (status FAIL, any severity) are the events.
+        The rule passes iff NO window of `within_s` length contains more than
+        `limit` events (limit defaults to 0). Deterministic: stable time-sort
+        (input order breaks ties) and an inclusive [t, t + W] window scan.
+
+        If any row has a missing or non-numeric TIME value the rule returns NA --
+        a window over a partial timeline cannot be enumerated honestly.
+        """
+        rules: list[dict[str, Any]] = []
+        for c in self.evaluation.criteria:
+            if c.within_s is None:
+                continue
+            times: list[float | None] = []
+            flags: list[bool] = []
+            for row in rows:
+                t = nested_get(row, c.time_field)
+                try:
+                    times.append(float(t))
+                except (TypeError, ValueError):
+                    times.append(None)
+                v = nested_get(row, c.field)
+                flags.append(c.evaluate(v) is False)
+            if any(t is None for t in times):
+                rules.append({"id": c.id, "status": "NA", "reason": "missing or non-numeric time", "within_s": c.within_s, "time_field": c.time_field, "limit": 0 if c.limit is None else c.limit, "count": None, "severity": c.severity})
+                continue
+            limit = 0 if c.limit is None else c.limit
+            order = sorted(range(len(rows)), key=lambda i: (times[i], i))
+            fail_times = [times[i] for i in order if flags[i]]
+            max_count = 0
+            W = c.within_s
+            for i, ti in enumerate(fail_times):
+                cnt = 0
+                for tj in fail_times[i:]:
+                    if tj - ti <= W:
+                        cnt += 1
+                    else:
+                        break
+                if cnt > max_count:
+                    max_count = cnt
+            ok = max_count <= limit
+            rules.append({"id": c.id, "within_s": W, "time_field": c.time_field, "limit": limit, "count": max_count, "status": "PASS" if ok else "FAIL", "severity": c.severity})
+        return rules
 
     def to_json(self, rows: list[dict[str, Any]], indent: int = 2) -> str:
         report = self.evaluate_all(rows)

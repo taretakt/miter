@@ -223,6 +223,9 @@ def _build_criterion(blk: _Block) -> Criterion:
     note = ""
     agg: str | None = None
     threshold_str: str | None = None
+    within_s: float | None = None
+    time_field = "t"
+    limit: int | None = None
     for lineno, content in blk.lines:
         parts = content.split()
         kw = parts[0]
@@ -260,13 +263,26 @@ def _build_criterion(blk: _Block) -> Criterion:
             if len(parts) < 2 or parts[1].lower() not in ("error", "warn"):
                 raise MiterError(f"line {lineno}: SEVERITY must be error or warn")
             severity = parts[1].lower()  # type: ignore[assignment]
+        elif kw.upper() == "WITHIN":
+            within_s = _parse_duration(parts[1])
+        elif kw.upper() == "TIME":
+            time_field = parts[1]
+        elif kw.upper() == "LIMIT":
+            if within_s is None:
+                raise MiterError(f"line {lineno}: LIMIT requires a WITHIN clause")
+            try:
+                limit = int(parts[1])
+            except ValueError:
+                raise MiterError(f"line {lineno}: LIMIT must be an integer")
+            if limit < 0:
+                raise MiterError(f"line {lineno}: LIMIT must be >= 0")
         elif kw.upper() == "NOTE":
             note = " ".join(parts[1:])
         else:
             raise MiterError(f"line {lineno}: unknown CRITERION directive {kw!r}")
     if field is None or op is None or threshold is None:
         raise MiterError(f"CRITERION {blk.id!r} is missing a FIELD line")
-    return Criterion(id=blk.id, field=field, op=op, threshold=threshold, severity=severity, note=note, agg=agg, threshold_str=threshold_str)
+    return Criterion(id=blk.id, field=field, op=op, threshold=threshold, severity=severity, note=note, agg=agg, threshold_str=threshold_str, within_s=within_s, time_field=time_field, limit=limit)
 
 
 def _build_variation(blk: _Block) -> Variation:

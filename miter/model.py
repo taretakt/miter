@@ -39,6 +39,9 @@ class Criterion:
     note: str = ""
     agg: str | None = None
     threshold_str: str | None = None
+    within_s: float | None = None
+    time_field: str = "t"
+    limit: int | None = None
 
     def evaluate(self, value: float | None | str) -> bool | None:
         """True = pass, False = fail, None = not applicable (missing field)."""
@@ -223,7 +226,7 @@ class Evaluation:
                 "subject": self.subject,
                 "inputs": self.inputs,
                 "criteria": [
-                    (c.id, c.field, c.op, c.threshold, c.severity, c.agg, c.threshold_str) for c in self.criteria
+                    (c.id, c.field, c.op, c.threshold, c.severity, c.agg, c.threshold_str, c.within_s, c.time_field, c.limit) for c in self.criteria
                 ],
                 "notices": self.notices,
                 "variations": [

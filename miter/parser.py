@@ -297,6 +297,7 @@ def _build_interface(blk: _Block) -> Interface:
     lane_from = lane_to = ""
     match_field = lane_field = ""
     tolerance: float | None = None
+    join: str | None = None
     budget_s: float | None = None
     time_field = "t"
     note = ""
@@ -317,6 +318,8 @@ def _build_interface(blk: _Block) -> Interface:
             budget_s = _parse_duration(parts[1])
         elif kw.upper() == "TIME":
             time_field = parts[1]
+        elif kw.upper() == "JOIN":
+            join = parts[1]
         elif kw.upper() == "NOTE":
             note = " ".join(parts[1:])
         else:
@@ -336,5 +339,6 @@ def _build_interface(blk: _Block) -> Interface:
         tolerance=tolerance,
         budget_s=budget_s,
         time_field=time_field,
+        join=join,
         note=note,
     )

@@ -84,7 +84,7 @@ CRITERION criterion_1
 1. ~~**Aggregate criteria**~~ **DONE in v0.2.0** — `AVG/SUM/MIN/MAX/COUNT` implemented (`FIELD AVG(x) >= t`); `PCT(...)` still open.
 2. ~~**Categorical equality**~~ **DONE in v0.3.0** — `FIELD tag == \"urgent\"`, `==`/`!=` only; compiler closed phrasings (`tagged as X`, `status must be X`) emit it directly.
 3. ~~**A `NOTICE` verb**~~ **DONE in v0.2.0** — compiler emits `NOTICE <category> semantics not supported...` lines; CLI prints them.
-4. **Two-leg interfaces** — `FROM row.key TO row.key` matching across subjects by a join key, still deterministic.
+4. ~~**Two-leg interfaces**~~ **DONE in v0.4.0** — `JOIN <key>` pairs rows 1:1 (no counterpart -> NA, >2 -> non-unique MISMATCHED); budget on entity-side TIME; dataset-level like aggregates.
 5. **Window clause** — `WITHIN 30d` on criteria/interfaces, requiring a TIME input and a deterministic sliding evaluation. Larger; do after (1)–(3).
 
 ## Explicitly refuse (keep the boundary)

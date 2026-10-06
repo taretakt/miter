@@ -160,10 +160,18 @@ class Interface:
     budget_s: float | None = None
     time_field: str = "t"
     note: str = ""
+    join: str | None = None  # two-leg: pair rows by equal value of this field
 
     def check(self, row: dict[str, Any]) -> dict[str, Any]:
-        a = self._num(row, self.match_field)
-        b = self._num(row, self.lane_field)
+        """Within-row phase match (single subject)."""
+        return self.check_pair(row, row)
+
+    def check_pair(self, entity: dict[str, Any], lane: dict[str, Any]) -> dict[str, Any]:
+        """Two-leg phase match: entity value vs receiving lane value.
+        Used for both within-row (entity is lane) and JOIN-ed row pairs.
+        """
+        a = self._num(entity, self.match_field)
+        b = self._num(lane, self.lane_field)
         if a is None or b is None:
             return {"status": "NA", "reason": "missing match or lane field"}
         if b == 0:
@@ -178,7 +186,7 @@ class Interface:
             "tolerance": self.tolerance,
         }
         if self.budget_s is not None:
-            t = self._num(row, self.time_field)
+            t = self._num(entity, self.time_field)
             if t is None:
                 result["budget"] = "NA"
             else:
@@ -186,7 +194,6 @@ class Interface:
                 if result["budget"] == "OVER":
                     result["status"] = "MISMATCHED"
         return result
-
     @staticmethod
     def _num(row: dict[str, Any], key: str) -> float | None:
         v = row.get(key)
@@ -233,6 +240,7 @@ class Evaluation:
                         i.tolerance,
                         i.budget_s,
                         i.time_field,
+                        i.join,
                     )
                     for i in self.interfaces
                 ],

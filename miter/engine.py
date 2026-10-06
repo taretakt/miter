@@ -63,7 +63,10 @@ class MiterEngine:
             }
         interfaces: dict[str, Any] = {}
         for i in self.evaluation.interfaces:
-            interfaces[i.id] = i.check(row)
+            if i.join:
+                interfaces[i.id] = {"status": "NA", "reason": "two-leg interface; evaluated in evaluate_all"}
+            else:
+                interfaces[i.id] = i.check(row)
         return {"criteria": criteria, "interfaces": interfaces}
 
     def _verdict(self, base: dict[str, Any], variations: dict[str, Any]) -> str:
@@ -85,6 +88,7 @@ class MiterEngine:
 
     def evaluate_all(self, rows: list[dict[str, Any]]) -> dict[str, Any]:
         rows_out = [self.evaluate_row(r) for r in rows]
+        self._resolve_two_leg(rows_out, rows)
         counts = {"PASS": 0, "FAIL": 0}
         for r in rows_out:
             counts[r["verdict"]] += 1
@@ -137,6 +141,41 @@ class MiterEngine:
                 clean = [float(v) for v in values if v is not None]
                 out[-1]["value"] = (min if c.agg == "min" else max)(clean) if clean else None
         return out
+
+    def _resolve_two_leg(self, rows_out: list[dict[str, Any]], rows: list[dict[str, Any]]) -> None:
+        """Resolve JOIN-ed interfaces across the dataset, then refresh verdicts.
+
+        Two-leg interfaces are dataset-level: pairing is a pure function of the
+        row set (deterministic), and each paired row sees the other side.
+        Variations are NOT re-evaluated here -- they perturb row-local state.
+        """
+        for iface in self.evaluation.interfaces:
+            if not iface.join:
+                continue
+            index: dict[str, list[int]] = {}
+            for idx, row in enumerate(rows):
+                k = nested_get(row, iface.join)
+                if k is None:
+                    rows_out[idx]["interfaces"][iface.id] = {"status": "NA", "reason": "missing join key", "join": None}
+                    continue
+                index.setdefault(str(k), []).append(idx)
+            for k, idxs in index.items():
+                if len(idxs) == 1:
+                    rows_out[idxs[0]]["interfaces"][iface.id] = {"status": "NA", "reason": "no counterpart", "join": k}
+                elif len(idxs) == 2:
+                    i, j = idxs[0], idxs[1]
+                    a = iface.check_pair(rows[i], rows[j])
+                    a["join"] = k
+                    b = iface.check_pair(rows[j], rows[i])
+                    b["join"] = k
+                    rows_out[i]["interfaces"][iface.id] = a
+                    rows_out[j]["interfaces"][iface.id] = b
+                else:
+                    for idx in idxs:
+                        rows_out[idx]["interfaces"][iface.id] = {"status": "MISMATCHED", "reason": f"non-unique join key ({len(idxs)} rows)", "join": k}
+        for r in rows_out:
+            base = {"criteria": r["criteria"], "interfaces": r["interfaces"]}
+            r["verdict"] = self._verdict(base, r["variations"])
 
     def to_json(self, rows: list[dict[str, Any]], indent: int = 2) -> str:
         report = self.evaluate_all(rows)

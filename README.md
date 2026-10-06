@@ -75,6 +75,35 @@ CRITERION is_urgent
   `<subject> tagged/classified/labeled as <value>` and
   `status/type/category/class must be <value>` — no NOTICE needed for those forms.
 
+## Two-leg interfaces (v0.4)
+
+The ghost car with an actual exchange: an interface whose two legs are
+different rows, paired by a join key.
+
+```text
+INTERFACE hub_swap
+    FROM leg_a TO leg_b
+    MATCH trailer_weight TO capacity
+    JOIN shipment_id
+    TOLERANCE 0.10
+    BUDGET 15m
+    TIME handoff_t
+END
+```
+
+Pairing semantics (deterministic, pure function of the row set):
+
+| join value appears | result |
+|---|---|
+| once | `NA` — no counterpart |
+| twice | each side evaluates its own match against the other's lane field |
+| thrice+ | `MISMATCHED` — non-unique join key |
+| missing on a row | `NA` — missing join key |
+
+Two-leg interfaces are dataset-level (like aggregates): `evaluate_row` alone
+yields `NA` with reason `two-leg interface`, and they are not re-evaluated
+under variations. Budget is measured on the entity side's `TIME` field.
+
 ## Compiler notices (v0.2)
 
 The natural-language compiler flags structure the deterministic core cannot express

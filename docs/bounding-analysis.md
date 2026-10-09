@@ -89,6 +89,12 @@ CRITERION criterion_1
 
 5. ~~**Window clause**~~ **DONE in v0.5.0** — `WITHIN <duration>` + `TIME <field>` + `LIMIT <n>`; dataset-level rolling rule; NA on missing time; O(n^2) deterministic scan (batches, not fleets).
 
+7. **PLANE — spatial module (proposed)** — lift evaluation off the per-row verdict onto a *declared* grid of subjects: express cross-subject coverage (`FIELD coverage >= 0.9` rolled over a named plane), adjacency / clearance (`no two <subject> within <radius>`), and lane map (`every <subject> has a lane`). **Bounding condition:** the plane and its edges are **declared in the spec** (edge list or bounded radius) — never computed from the data — so no implicit cross-product fan-out (the §2 two-leg manacle, refused). Deterministic: O(n`·m) over declared cells; aggregate rollup reuses the v0.2 aggregator.
+
+8. **LINEAGE — temporal module (proposed)** — extend the two-leg interface from a single jump to an **input-carried ancestry chain**: `JOIN` a row to its predecessor up to `DEPTH n`, then fold criteria across the lineage (drift / monotone / cycle detection: `no two <subject> share an ancestor`, `field must not regress across generations`). **Bounding condition:** ancestry is **carried in the input** (each row declares its parent ref) — pure function of the row set, no runtime state, no mutation mid-eval. Deterministic: n-leg generalization of the §4 `check_pair` (1:1, NA on missing parent, non-unique -> MISMATCHED); the bounded-analysis "stateful sequences" refusal holds — the *state* is caller-carried input, not module-owned.
+
+This is the natural capstone pair: **PLANE answers *where* (space), LINEAGE answers *when* (time)** — alongside the existing *what* (criteria/variations) and *who* (two-leg interfaces). All four stay byte-deterministic.
+
 ## Explicitly refuse (keep the boundary)
 
 - **LLM-as-judge inside the spec** — a semantic criterion would break byte-determinism. Keep the LLM *outside* as a producer of fields ("sentiment: hostile"), never as the verdict authority.

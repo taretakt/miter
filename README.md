@@ -44,6 +44,10 @@ END
 - [docs/positioning.md](docs/positioning.md) — the full problem framing: why the transition, why determinism, who it's for
 - [docs/bounding-analysis.md](docs/bounding-analysis.md) — empirically probed boundaries: what the DSL can and cannot express, and what to add next
 
+### Evaluation artifacts
+
+[STATUS.md](STATUS.md), [ATTRIBUTION.md](ATTRIBUTION.md) and [docs/ADR-0000-fail-at-transitions.md](docs/ADR-0000-fail-at-transitions.md) are **artifacts produced to be evaluated** — status checks, asset provenance, and a recorded design decision — not product documentation. They document the evaluation story and are updated by the integrator, not claimed as shipped features.
+
 ## Dataset-level aggregates (v0.2)
 
 A `FIELD AVG(x) >= t` criterion is evaluated across the row set, not per row:

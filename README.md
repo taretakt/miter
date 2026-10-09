@@ -205,7 +205,7 @@ inventing a threshold.
 ## Install & run
 
 ```console
-$ pip install miter            # or: uv add miter
+$ pip install git+https://github.com/taretakt/miter.git   # PyPI publish pending
 $ miter run examples/route_feasibility.mtr --data examples/routes.json
 $ miter lint examples/route_feasibility.mtr
 $ miter compile "the route must respect depot capacity and driver hours"
